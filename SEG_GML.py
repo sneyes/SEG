@@ -29,6 +29,7 @@ class point:
 		self.y = _y
 		self.color = _color
 		self.degree = 0
+		self.connectedRotations = set()
 	def __str__(self):
 		return str(round(self.x,0)) + " _ " + str(round(self.y,0))
 
@@ -104,8 +105,9 @@ def drawSquare(dr,p,size,color):
 
 #VARIABLES
 imageOutput = True
-labeledImage = False
+labeledImage = True
 csvOutput = False
+calcSpanningRatio = False
 
 if csvOutput:
 	headerRow = ["File Name","Configuration","Point Count","Steiner Point Count","Minimum Degree","Maximum Degree","Average Degree","Edge Count","Minimum Edge Len","Maximum Edge Len","Average Edge Len","Total Edge Length","Minimum Angle","Maximum Angle","Spanning Ratio"]
@@ -131,10 +133,12 @@ for gmlFile in gmlFiles:
 		minimumDegree = 100000000
 		maximumDegree = 0
 		averageDegree = 0
-		dotSize = 10
+		dotSize = 5
 		blockedRays = set()
-		usedRGBs = []
-		printMargin = 10000000
+		usedRGBs = [] 
+		printMargin = 10000000  
+
+
 		minPointDistance = 1
 		hadChange = True
 		points = []
@@ -163,10 +167,10 @@ for gmlFile in gmlFiles:
 				r,g,b = [int(256*i) for i in colorsys.hls_to_rgb(h,l,s)]
 			usedRGBs.append((r,g,b))
 			color=(r,g,b)
-			points.append(point(x*dotSize,y*dotSize,color))
+			points.append(point(x*dotSize/2,y*dotSize/2,color))
 			
-		width = int((width+printMargin) * dotSize)
-		height = int((height+printMargin) * dotSize)
+		width = int((width+printMargin) * dotSize/2)
+		height = int((height+printMargin) * dotSize/2)
 		emGraph.add_nodes_from([(p.x,p.y) for p in points])
 		pointCount = len(points)
 		fileName = gmlFile.split('\\')[1].split('.')[0]
@@ -174,7 +178,6 @@ for gmlFile in gmlFiles:
 		drawer = ImageDraw.Draw(img)
 
 		startTime = time.time()
-
 		if emanationGrade == 1:
 			coneDegree = math.pi/2
 			for rot in range(0,4):
@@ -286,7 +289,6 @@ for gmlFile in gmlFiles:
 					rotatedPoints = rotatePlane(points,rot*coneDegree)
 				ySortedPoints = sorted(rotatedPoints,key=sortByY)
 				for p in rotatedPoints:
-
 					p_s = p
 					p_csr = p
 					p_csl = p
@@ -304,8 +306,6 @@ for gmlFile in gmlFiles:
 						if  ps == p:
 							continue
 						angle_p_s_p = math.atan2((ps.y-p.y),(ps.x-p.x))
-
-
 
 						if angle_p_s_p >= 1.5*coneDegree and angle_p_s_p <= 2.5*coneDegree:
 							p_s = ps
@@ -369,7 +369,6 @@ for gmlFile in gmlFiles:
 						if sright_p_s.y > sright_p_cs.y:
 							continue
 
-
 					for item in pcList:
 						p_c = item[0]
 						case = item[1]
@@ -424,16 +423,17 @@ for gmlFile in gmlFiles:
 						j = rotateJunctionBack(j,-1*rot*coneDegree)
 					else:
 						p_s = rotatePointBack(p_s,point(0,0,p.color),0,points)
+
 					if (str(p),str(p_s)) in connectedPoints or (str(p_s),str(p)) in connectedPoints:
 						continue
 					else:
+						p.connectedRotations.add(math.atan2((p.y-j.y),(p.x-j.x))*180/math.pi)
+						p_s.connectedRotations.add(math.atan2((p_s.y-j.y),(p_s.x-j.x))*180/math.pi)
 						if isSteiner:
 							steinerPointCount += 1					
 						connectedPoints.append((str(p),str(p_s)))
 						emanatedEdges.append(emanatedEdge(p,j))
 						emanatedEdges.append(emanatedEdge(p_s,j))	
-						p.degree += 1
-						p_s.degree += 1									
 						emGraph.add_node((j.x,j.y))
 						dist1 = math.sqrt((p.y-j.y)**2+(p.x-j.x)**2)
 						dist2 = math.sqrt((p_s.y-j.y)**2+(p_s.x-j.x)**2)
@@ -455,21 +455,24 @@ for gmlFile in gmlFiles:
 		endTime = time.time()
 
 		emSpanningRatio = 0
-		shortestPaths = dict(nx.all_pairs_bellman_ford_path_length(emGraph))
+		if calcSpanningRatio:
+			shortestPaths = dict(nx.all_pairs_bellman_ford_path_length(emGraph))
 		for p1 in points:
+			p1.degree = len(p1.connectedRotations)
 			if p1.degree > maximumDegree:
 				maximumDegree = p1.degree
 			if p1.degree < minimumDegree:
 				minimumDegree = p1.degree
 			averageDegree += p1.degree
 
-			for p2 in points:
-				if p1 != p2:
-					dist = math.sqrt((p1.y-p2.y)**2+(p1.x-p2.x)**2)
-					dilation = shortestPaths[(p1.x,p1.y)][(p2.x,p2.y)] / dist
-					if emSpanningRatio < dilation:
-						emSpanningRatio = dilation
-
+			if calcSpanningRatio:
+				for p2 in points:
+					if p1 != p2:
+						dist = math.sqrt((p1.y-p2.y)**2+(p1.x-p2.x)**2)
+						dilation = shortestPaths[(p1.x,p1.y)][(p2.x,p2.y)] / dist
+						if emSpanningRatio < dilation:
+							emSpanningRatio = dilation
+		averageDegree = averageDegree / (pointCount+steinerPointCount) * 2
 		print(str(fileName)+ " Done")
 
 		if imageOutput:
@@ -479,14 +482,15 @@ for gmlFile in gmlFiles:
 				drawSquare(drawer,e.junction,dotSize/2,'black')
 			for x in points:
 				if labeledImage:
-					drawer.text((x.x+dotSize/2,x.y-dotSize/2),str(points.index(x)),'red',font=mfnt)
-				drawPoint(drawer,x,dotSize*3,x.color)
+					drawer.text((x.x+dotSize,x.y+dotSize),str(points.index(x)),'red',font=mfnt)
+				drawPoint(drawer,x,dotSize*4,x.color)
 			img.load()
 			res = img.resize((int(width),int(height)),resample=Image.ANTIALIAS)
 			if emanationGrade ==1:
 				res.save("gml/images/"+str(pointCount)+"/k1/"+fileName+".png")
 			else:
-				res.save("gml/images/"+str(pointCount)+"/k2/"+fileName+".png")
+				# res.save("gml/images/"+str(pointCount)+"/k2/"+fileName+".png")
+				res.save("gml/images/"+fileName+".png")
 		if csvOutput:
 			row = [str(fileName),"Emanation Grade: "+str(emanationGrade),str(pointCount),str(steinerPointCount),str(minimumDegree),str(maximumDegree),str(averageDegree),str(edgeCount),str(minimumEdgeLen),str(maximumEdgeLen),str(averageEdgeLen),str(totalEdgeLength),str(minimumAngle),str(maximumAngle),str(emSpanningRatio)]
 			with open('gml/Emanataion_results.csv','a',newline='') as csvFile:

@@ -36,8 +36,8 @@ def drawPoint(dr,p,size,color):
 	dr.ellipse((p.x-size/2, p.y-size/2, p.x+size/2, p.y+size/2), fill=color)
 
 imageOutput = True
-csvOutput = False
-labeledImage = False
+csvOutput = True
+labeledImage = True
 
 if csvOutput:
 	headerRow = ["File Name","Configuration","Point Count","Steiner Point Count","Minimum Degree","Maximum Degree","Average Degree","Edge Count","Minimum Edge Len","Maximum Edge Len","Average Edge Len","Total Edge Length","Minimum Angle","Maximum Angle","Spanning Ratio"]
@@ -60,7 +60,7 @@ for gmlFile in gmlFiles:
 		graphEdges = []
 		width = 0
 		height = 0
-		dotSize = 10
+		dotSize = 5
 		minimumAngle = 180
 		maximumAngle = 0
 		minimumEdgeLen = 100000000
@@ -94,7 +94,7 @@ for gmlFile in gmlFiles:
 				r,g,b = [int(256*i) for i in colorsys.hls_to_rgb(h,l,s)]
 			usedRGBs.append((r,g,b))
 			color=(r,g,b)
-			points.append(point(x*dotSize,y*dotSize,color))
+			points.append(point(x*dotSize/2,y*dotSize/2,color))
 			
 		width = int((width+printMargin) * dotSize)
 		height = int((height+printMargin) * dotSize)
@@ -194,21 +194,21 @@ for gmlFile in gmlFiles:
 
 
 		spanningRatio = 0
-		shortestPaths = dict(nx.all_pairs_bellman_ford_path_length(emGraph))
+		# shortestPaths = dict(nx.all_pairs_bellman_ford_path_length(emGraph))
 		for p1 in points:
 			if p1.degree > maximumDegree:
 				maximumDegree = p1.degree
 			if p1.degree < minimumDegree:
 				minimumDegree = p1.degree
 			averageDegree += p1.degree
-			for p2 in points:
-				if p1 != p2:
-					dist = math.sqrt((p1.y-p2.y)**2+(p1.x-p2.x)**2)
-					try:
-						dilation = shortestPaths[(p1.x,p1.y)][(p2.x,p2.y)] / dist
-					except KeyError: pass
-					if spanningRatio < dilation:
-						spanningRatio = dilation						
+			# for p2 in points:
+			# 	if p1 != p2:
+			# 		dist = math.sqrt((p1.y-p2.y)**2+(p1.x-p2.x)**2)
+			# 		try:
+			# 			dilation = shortestPaths[(p1.x,p1.y)][(p2.x,p2.y)] / dist
+			# 		except KeyError: pass
+			# 		if spanningRatio < dilation:
+			# 			spanningRatio = dilation						
 		
 		averageDegree /= pointCount
 		if imageOutput:
@@ -220,7 +220,7 @@ for gmlFile in gmlFiles:
 				drawPoint(drawer,x,dotSize*3,x.color)
 			img.load()
 			res = img.resize((int(width),int(height)),resample=Image.ANTIALIAS)
-			res.save("triangle/images/"+str(pointCount)+"/"+fileName+"_"+str(degreeConstraint)+" DegConst.png")
+			res.save("triangle/images/"+fileName+"_"+str(degreeConstraint)+" DegConst.png")
 		print("Processing file "+fileName+"_"+str(degreeConstraint)+" DegConst finished.")
 		if csvOutput:
 			row = [str(fileName),"Triangle DegConst "+str(degreeConstraint),str(pointCount),str(steinerPointCount),str(minimumDegree),str(maximumDegree),str(averageDegree),str(edgeCount),str(minimumEdgeLen),str(maximumEdgeLen),str(averageEdgeLen),str(totalEdgeLength),str(minimumAngle),str(maximumAngle),str(spanningRatio)]
